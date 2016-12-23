@@ -1,5 +1,4 @@
 var http = require('http')
-var express = require('express')
 var hyperdrive = require('hyperdrive')
 var memdb = require('memdb')
 var swarm = require('hyperdiscovery')
