@@ -37,6 +37,12 @@ app.get('/:link/:content', function(req, res) {
   sw.once('connection', function (peer, type) {
     var stream = archive.createFileReadStream(req.params.content)
     stream.pipe(res)
+    stream.on('error', function(err) {
+      if (err.message == 'Could not find entry')
+        res.status(404).send(err.message)
+      else
+        res.status(500).send(err.message)
+    })
   })
 })
 
