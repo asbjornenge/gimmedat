@@ -1,26 +1,40 @@
+var http = require('http')
 var express = require('express')
 var hyperdrive = require('hyperdrive')
 var memdb = require('memdb')
 var swarm = require('hyperdiscovery')
 var PORT = 3000
 
-var app = express()
-app.get('/:link', 
-  function(req, res, next) {
-    if(req.url.substr(-1) != '/' && req.url.length > 1)
-      res.redirect(301, req.url+'/')
-    else
-      next()
-  },
-  function(req, res) {
+http.createServer(function(req,res) {
+  var path = req.url.split('/').filter(function(p) {
+    return p != ""
+  })
+  if (path.length == 0) {
+    return res.end('HOWTO coming...')
+  }
+  var link = path.shift()
+  try {
     var db = memdb()
     var drive = hyperdrive(db)
-    var archive = drive.createArchive(req.params.link)
+    var archive = drive.createArchive(link)
     var sw = swarm(archive)
-    var downloading = false
+  } catch(e) {
+    res.statusCode = 500
+    return res.end(e.message)
+  }
+  if (path.length == 0) {
+    // List dir
+    if(req.url.substr(-1) != '/' && req.url.length > 1) {
+      res.statusCode = 301
+      res.setHeader('Location', req.url+'/')
+      return res.end()
+    }
     sw.once('connection', function (peer, type) {
       archive.list(function(err, entries) {
-        if (err) return res.status(500).send(err.message)
+        if (err) {
+          res.statusCode = 500
+          return res.end(err.message)
+        }
         var fileNames = entries.reduce(function(coll, curr) {
           if (curr.name == "") return coll
           return coll+"<a href='"+curr.name+"'>"+curr.name+"</a><br/>"
@@ -28,24 +42,24 @@ app.get('/:link',
         res.end(fileNames)
       })
     })
-})
-app.get('/:link/:content', function(req, res) {
-  var db = memdb()
-  var drive = hyperdrive(db)
-  var archive = drive.createArchive(req.params.link)
-  var sw = swarm(archive)
-  sw.once('connection', function (peer, type) {
-    var stream = archive.createFileReadStream(req.params.content)
-    stream.pipe(res)
-    stream.on('error', function(err) {
-      if (err.message == 'Could not find entry')
-        res.status(404).send(err.message)
-      else
-        res.status(500).send(err.message)
+  }
+  else {
+    // Get file
+    sw.once('connection', function (peer, type) {
+      var stream = archive.createFileReadStream(path.join('/'))
+      stream.pipe(res)
+      stream.on('error', function(err) {
+        if (err.message == 'Could not find entry') {
+          res.statusCode = 404
+          res.end(err.message)
+        }
+        else {
+          res.statusCode = 500
+          res.end(err.message)
+        }
+      })
     })
-  })
-})
-
-app.listen(PORT, function () {
+  }
+}).listen(PORT, function() {
   console.log('Listening on :'+PORT)
 })
