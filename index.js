@@ -1,17 +1,45 @@
+var express = require('express')
 var hyperdrive = require('hyperdrive')
 var memdb = require('memdb')
 var swarm = require('hyperdiscovery')
- 
-var drive = hyperdrive(memdb())
-var archive = drive.createArchive('f74e1a4aa822dfd442f48885f7614724e585d493e498df8f90ff98250aa1906b')
- 
-var sw = swarm(archive)
-sw.on('connection', function (peer, type) {
-  var stream = archive.createFileReadStream('Dylan2.jpg')
-  stream.on('data', function (data) {
-    console.log(data) // <-- file data
+var PORT = 3000
+
+var app = express()
+app.get('/:link', 
+  function(req, res, next) {
+    if(req.url.substr(-1) != '/' && req.url.length > 1)
+      res.redirect(301, req.url+'/')
+    else
+      next()
+  },
+  function(req, res) {
+    var db = memdb()
+    var drive = hyperdrive(db)
+    var archive = drive.createArchive(req.params.link)
+    var sw = swarm(archive)
+    var downloading = false
+    sw.once('connection', function (peer, type) {
+      archive.list(function(err, entries) {
+        if (err) return res.status(500).send(err.message)
+        var fileNames = entries.reduce(function(coll, curr) {
+          if (curr.name == "") return coll
+          return coll+"<a href='"+curr.name+"'>"+curr.name+"</a><br/>"
+        },'')
+        res.end(fileNames)
+      })
+    })
+})
+app.get('/:link/:content', function(req, res) {
+  var db = memdb()
+  var drive = hyperdrive(db)
+  var archive = drive.createArchive(req.params.link)
+  var sw = swarm(archive)
+  sw.once('connection', function (peer, type) {
+    var stream = archive.createFileReadStream(req.params.content)
+    stream.pipe(res)
   })
-  stream.on('end', function () {
-    console.log('no more data')
-  })
+})
+
+app.listen(PORT, function () {
+  console.log('Listening on :'+PORT)
 })
