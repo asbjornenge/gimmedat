@@ -1,7 +1,10 @@
+var fs = require('fs')
 var http = require('http')
 var hyperdrive = require('hyperdrive')
 var memdb = require('memdb')
 var swarm = require('hyperdiscovery')
+var marked = require('marked')
+var readme = marked(fs.readFileSync('./README.md').toString())
 var PORT = 3000
 
 http.createServer(function(req,res) {
@@ -9,7 +12,7 @@ http.createServer(function(req,res) {
     return p != ""
   })
   if (path.length == 0) {
-    return res.end('HOWTO coming...')
+    return res.end(readme)
   }
   var link = path.shift()
   try {
